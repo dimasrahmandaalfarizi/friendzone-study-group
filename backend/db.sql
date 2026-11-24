@@ -58,3 +58,46 @@ CREATE TABLE workspaces (
   name VARCHAR(255) NOT NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- 1. Catatan kolaboratif (menyimpan struktur JSON dari editor Tiptap)
+CREATE TABLE IF NOT EXISTS workspace_notes (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  title VARCHAR(255) NOT NULL DEFAULT 'Untitled Study Note',
+  content_json JSONB NOT NULL DEFAULT '{"type":"doc","content":[]}'::jsonb,
+  updated_by UUID REFERENCES users(id) ON DELETE SET NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_workspace_notes_ws ON workspace_notes(workspace_id);
+
+-- 2. Penjadwalan sesi belajar
+CREATE TABLE IF NOT EXISTS study_sessions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  workspace_id UUID NOT NULL REFERENCES workspaces(id) ON DELETE CASCADE,
+  created_by UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  topic VARCHAR(255) NOT NULL,
+  scheduled_at TIMESTAMPTZ NOT NULL,
+  meeting_link TEXT NOT NULL DEFAULT '', -- buat simpan link meet/zoom
+  status VARCHAR(20) NOT NULL DEFAULT 'scheduled' CHECK (status IN ('scheduled', 'completed', 'cancelled')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_study_sessions_ws ON study_sessions(workspace_id);
+
+-- 3. Evaluasi akuntabilitas & rating peer pasca-sesi (mencegah free-riding)
+CREATE TABLE IF NOT EXISTS session_evaluations (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  session_id UUID NOT NULL REFERENCES study_sessions(id) ON DELETE CASCADE,
+  reviewer_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  reviewee_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  rating INT NOT NULL CHECK (rating BETWEEN 1 AND 5),
+  reflection_note TEXT NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  CONSTRAINT chk_no_self_eval CHECK (reviewer_id != reviewee_id),
+  CONSTRAINT uq_session_reviewer UNIQUE (session_id, reviewer_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_session_evaluations_reviewee ON session_evaluations(reviewee_id);

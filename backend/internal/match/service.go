@@ -58,7 +58,7 @@ func (s *Service) GetDiscoverDeck(ctx context.Context, userID, rawScope string) 
 	// 2. Cache miss / deck habis: ambil batch baru dari PostgreSQL pgvector
 	vec, university, err := s.repo.GetUserEmbeddingAndCampus(ctx, userID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("load current user's embedding and campus: %w", err)
 	}
 
 	universityFilter := ""
@@ -68,7 +68,7 @@ func (s *Service) GetDiscoverDeck(ctx context.Context, userID, rawScope string) 
 
 	cards, err := s.repo.FetchDiscoveryDeck(ctx, userID, vec, universityFilter, deckBatchSize)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("fetch discovery candidates: %w", err)
 	}
 
 	// Simpan ke Redis jika ada hasil

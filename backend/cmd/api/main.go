@@ -24,6 +24,7 @@ import (
 	"github.com/BallSpins/friendzone/internal/match"
 	"github.com/BallSpins/friendzone/internal/middleware"
 	"github.com/BallSpins/friendzone/internal/user"
+	"github.com/BallSpins/friendzone/internal/workspace"
 	httpSwagger "github.com/swaggo/http-swagger/v2"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
@@ -102,6 +103,10 @@ func main() {
 	matchService := match.NewService(matchRepo, rdb)
 	matchHandler := match.NewHandler(matchService, authService)
 
+	wsRepo := workspace.NewPostgresRepository(db)
+	wsService := workspace.NewService(wsRepo)
+	wsHandler := workspace.NewHandler(wsService, authService)
+
 	// 4. Routing
 	mux := http.NewServeMux()
 
@@ -113,6 +118,7 @@ func main() {
 	authHandler.RegisterRoutes(mux)
 	userHandler.RegisterRoutes(mux)
 	matchHandler.RegisterRoutes(mux)
+	wsHandler.RegisterRoutes(mux)
 	
 	mux.HandleFunc("GET /docs/", httpSwagger.Handler(
 		httpSwagger.URL("/docs/doc.json"),
