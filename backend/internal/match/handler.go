@@ -3,6 +3,7 @@ package match
 import (
 	"encoding/json"
 	"errors"
+	"log"
 	"net/http"
 
 	"github.com/BallSpins/friendzone/internal/auth"
@@ -18,12 +19,6 @@ func NewHandler(matchService *Service, authService *auth.Service) *Handler {
 		matchService: matchService,
 		authService:  authService,
 	}
-}
-
-func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("GET /api/discover", auth.RequireAuth(h.authService, h.Discover))
-	mux.HandleFunc("POST /api/swipes", auth.RequireAuth(h.authService, h.Swipe))
-	mux.HandleFunc("GET /api/matches", auth.RequireAuth(h.authService, h.ListMatches))
 }
 
 // Discover godoc
@@ -50,6 +45,7 @@ func (h *Handler) Discover(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
 		}
+		log.Printf("discover: %v", err)
 		http.Error(w, "Failed to load discovery deck", http.StatusInternalServerError)
 		return
 	}
