@@ -19,6 +19,7 @@ import (
 
 	"github.com/BallSpins/friendzone/docs"
 	"github.com/BallSpins/friendzone/internal/auth"
+	"github.com/BallSpins/friendzone/internal/chat"
 	"github.com/BallSpins/friendzone/internal/config"
 	"github.com/BallSpins/friendzone/internal/embedding"
 	"github.com/BallSpins/friendzone/internal/match"
@@ -104,8 +105,11 @@ func main() {
 	matchHandler := match.NewHandler(matchService, authService)
 
 	wsRepo := workspace.NewPostgresRepository(db)
-	wsService := workspace.NewService(wsRepo)
+	wsService := workspace.NewService(wsRepo, rdb)
 	wsHandler := workspace.NewHandler(wsService, authService)
+
+	chatService := chat.NewService(db, rdb)
+	chatHandler := chat.NewHandler(chatService, authService)
 
 	// 4. Routing
 	mux := http.NewServeMux()
@@ -119,6 +123,7 @@ func main() {
 	userHandler.RegisterRoutes(mux)
 	matchHandler.RegisterRoutes(mux)
 	wsHandler.RegisterRoutes(mux)
+	chatHandler.RegisterRoutes(mux)
 	
 	mux.HandleFunc("GET /docs/", httpSwagger.Handler(
 		httpSwagger.URL("/docs/doc.json"),

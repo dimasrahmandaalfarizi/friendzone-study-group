@@ -7,6 +7,7 @@ import (
 
 func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/workspaces/{workspaceID}", auth.RequireAuth(h.authService, h.GetWorkspace))
+	mux.HandleFunc("GET /api/workspaces/{workspaceID}/streak", auth.RequireAuth(h.authService, h.GetStreak))
 
 	// Collaborative Notes (Tiptap)
 	mux.HandleFunc("GET /api/workspaces/{workspaceID}/notes", auth.RequireAuth(h.authService, h.ListNotes))

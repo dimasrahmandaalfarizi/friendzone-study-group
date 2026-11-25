@@ -53,6 +53,24 @@ func (h *Handler) GetWorkspace(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(ws)
 }
 
+// GetStreak godoc
+// @Summary Get current gamified study streak for a workspace
+// @Tags workspaces
+// @Produce json
+// @Param workspaceID path string true "Workspace UUID"
+// @Success 200 {object} StreakStatus
+// @Router /api/workspaces/{workspaceID}/streak [get]
+func (h *Handler) GetStreak(w http.ResponseWriter, r *http.Request) {
+	userID, _ := auth.GetUserIDFromContext(r.Context())
+	streak, err := h.wsService.GetWorkspaceStreak(r.Context(), r.PathValue("workspaceID"), userID)
+	if err != nil {
+		writeDomainError(w, err)
+		return
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(streak)
+}
+
 // ListNotes godoc
 // @Summary List collaborative notes in a workspace
 // @Tags workspaces

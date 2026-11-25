@@ -3,9 +3,13 @@ package workspace
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
+	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 type Repository interface {
@@ -17,18 +21,51 @@ type Repository interface {
 	CreateSession(ctx context.Context, workspaceID, userID string, in CreateSessionInput) (*StudySession, error)
 	UpdateSessionStatus(ctx context.Context, workspaceID, sessionID, status string) (*StudySession, error)
 	CreateEvaluation(ctx context.Context, workspaceID, sessionID, reviewerID, revieweeID string, in CreateEvaluationInput) (*Evaluation, error)
+	CountSessionEvaluations(ctx context.Context, sessionID string) (int, error)
 }
 
 type Service struct {
 	repo Repository
+	rdb  *redis.Client
 }
 
-func NewService(repo Repository) *Service {
-	return &Service{repo: repo}
+func NewService(repo Repository, rdb *redis.Client) *Service {
+	return &Service{repo: repo, rdb: rdb}
+}
+
+func streakRedisKey(workspaceID string) string {
+	return fmt.Sprintf("streak:ws:%s", workspaceID)
 }
 
 func (s *Service) GetWorkspace(ctx context.Context, workspaceID, userID string) (*WorkspaceDetail, error) {
 	return s.repo.GetWorkspaceAndPartner(ctx, workspaceID, userID)
+}
+
+func (s *Service) GetWorkspaceStreak(ctx context.Context, workspaceID, userID string) (*StreakStatus, error) {
+	if _, err := s.repo.GetWorkspaceAndPartner(ctx, workspaceID, userID); err != nil {
+		return nil, err
+	}
+
+	key := streakRedisKey(workspaceID)
+	count, err := s.rdb.HGet(ctx, key, "count").Int()
+	if errors.Is(err, redis.Nil) {
+		return &StreakStatus{WorkspaceID: workspaceID, Current: 0, ExpiresIn: 0}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+
+	ttl, _ := s.rdb.TTL(ctx, key).Result()
+	expSec := int64(ttl.Seconds())
+	if expSec < 0 {
+		expSec = 0
+	}
+
+	return &StreakStatus{
+		WorkspaceID: workspaceID,
+		Current:     count,
+		ExpiresIn:   expSec,
+	}, nil
 }
 
 func (s *Service) ListNotes(ctx context.Context, workspaceID, userID string) ([]Note, error) {
@@ -117,6 +154,24 @@ func (s *Service) SubmitEvaluation(ctx context.Context, workspaceID, sessionID, 
 		return nil, fmt.Errorf("%w: reflection_note is required for accountability", ErrInvalidInput)
 	}
 
-	// PartnerID dari workspace otomatis menjadi reviewee_id
-	return s.repo.CreateEvaluation(ctx, workspaceID, sessionID, reviewerID, ws.PartnerID, in)
+	ev, err := s.repo.CreateEvaluation(ctx, workspaceID, sessionID, reviewerID, ws.PartnerID, in)
+	if err != nil {
+		return nil, err
+	}
+
+	// Streak bertambah hanya jika kedua peer (count == 2) telah mengisi evaluasi pasca-sesi
+	evalCount, err := s.repo.CountSessionEvaluations(ctx, sessionID)
+	if err == nil && evalCount >= 2 {
+		key := streakRedisKey(workspaceID)
+		lastSession, _ := s.rdb.HGet(ctx, key, "last_session_id").Result()
+		if lastSession != sessionID {
+			pipe := s.rdb.TxPipeline()
+			pipe.HIncrBy(ctx, key, "count", 1)
+			pipe.HSet(ctx, key, "last_session_id", sessionID, "updated_at", time.Now().UTC().Format(time.RFC3339))
+			pipe.Expire(ctx, key, 72*time.Hour)
+			_, _ = pipe.Exec(ctx)
+		}
+	}
+
+	return ev, nil
 }

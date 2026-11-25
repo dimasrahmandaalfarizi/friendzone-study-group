@@ -253,3 +253,10 @@ func (r *PostgresRepository) CreateEvaluation(
 	}
 	return &ev, nil
 }
+
+func (r *PostgresRepository) CountSessionEvaluations(ctx context.Context, sessionID string) (int, error) {
+	var count int
+	query := `SELECT COUNT(*) FROM session_evaluations WHERE session_id = $1`
+	err := r.db.QueryRowContext(ctx, query, sessionID).Scan(&count)
+	return count, err
+}

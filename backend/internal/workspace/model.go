@@ -25,6 +25,12 @@ type WorkspaceDetail struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
+type StreakStatus struct {
+	WorkspaceID string `json:"workspace_id"`
+	Current     int    `json:"current_streak"`
+	ExpiresIn   int64  `json:"expires_in_seconds"`
+}
+
 type Note struct {
 	ID          string          `json:"id"`
 	WorkspaceID string          `json:"workspace_id"`
