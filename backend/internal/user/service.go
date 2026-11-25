@@ -104,6 +104,9 @@ func (s *Service) UpdateAcademicProfile(ctx context.Context, userID string, in U
 	if err != nil {
 		return nil, fmt.Errorf("generate profile embedding: %w", err)
 	}
+	if len(vector) != 768 {
+		return nil, fmt.Errorf("generate profile embedding: expected 768 dimensions, got %d", len(vector))
+	}
 
 	return s.repo.UpsertProfile(ctx, userID, in, vector)
 }
